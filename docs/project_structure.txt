@@ -1,0 +1,27 @@
+manga-tracker/
+│
+├── index.html
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+│
+├── public/
+│
+└── src/
+    ├── components/
+    │   ├── BarcodeScanner.vue
+    │   ├── BookPreview.vue
+    │   └── MangaList.vue
+    │
+    ├── services/
+    │   ├── googleAuth.ts
+    │   ├── googleBooks.ts
+    │   └── googleSheets.ts
+    │
+    ├── views/
+    │   ├── Home.vue
+    │   ├── Scan.vue
+    │   └── Collection.vue
+    │
+    ├── App.vue
+    └── main.ts

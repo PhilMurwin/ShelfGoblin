@@ -1,0 +1,15 @@
+Book
+├── ISBN
+├── Title
+├── Author(s)
+├── Publisher
+├── Publication Date
+├── Format
+├── Series
+├── Volume
+├── Cover
+├── Description
+├── Owned
+├── Read
+├── Date Read
+└── Notes

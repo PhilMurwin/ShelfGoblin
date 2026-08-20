@@ -1,0 +1,90 @@
+# ToDo
+1. [x] Create the Vue project
+3. [x] Get ISBN book information working
+2. [x] Setup Google Cloud
+  * Create a Google Cloud project specifically for the application.
+  * [x] Enable Book API
+  * [x] Enable Sheets API
+  * [x] Configure OAuth
+4. [ ] Define the data model
+  * Decide exactly what one collection record looks like. (see BookDataModel.txt)
+5. [ ] Define a small Book Details component (BookDetails.vue)
+  * Retrieve Google Books response, convert to Shelf Goblin data model
+  * Display via BookDetails.vue from Data model
+6. [ ] Implement Sign in with Google
+  * The first usable screen should simply be:
+    ```
+    Manga Collection
+
+    Track your manga collection and reading progress.
+
+    [ Sign in with Google ]
+    ```
+  * The user authorizes the application.
+  * Importantly, we're not creating an account system for the app. Google is effectively providing the identity.
+7. [ ] Create the user's spreadsheet
+  * Google's Sheets API supports creating a spreadsheet directly and returns its spreadsheetId and URL.
+    * Collection
+      * The actual books.
+    * Series
+      * Eventually used for collection/completion statistics.
+    * Settings
+      * Things like application version and preferences.
+  * The spreadsheet itself remains in the user's Google account.
+8. [ ] Build the confirmation screen
+  * Don't immediately write the result to the spreadsheet.
+  * After scanning/looking up:
+    ```
+    ┌──────────────────────────────┐
+    │                              │
+    │       [cover image]          │
+    │                              │
+    │ One Piece, Vol. 42           │
+    │                              │
+    │ Series: One Piece            │
+    │ Volume: 42                   │
+    │ Publisher: VIZ Media         │
+    │ ISBN: 978142...              │
+    │                              │
+    │ [ Edit ]      [ Add ]        │
+    └──────────────────────────────┘
+    ```
+  * This is particularly important for manga because metadata can be imperfect.
+    * You should be able to correct:
+      * Series
+      * Volume
+      * Edition
+      * Format
+    * before saving it.
+9. [ ] Add the phone camera scanner
+  * Once the ISBN lookup works, add the camera.
+  * Make the scanner automatically restart after adding a book.
+    * That way you can sit in front of a shelf and go:
+      > scan → confirm → scan → confirm → scan → confirm
+    * rather than navigating through the app every time.
+10. [ ] Build the collection interface
+  * add the actual collection view.
+    ```
+    My Collection
+
+    Search: [________________]
+
+    Series             Owned    Read
+    ────────────────────────────────
+    One Piece           42/110   35
+    Death Note          12/12    12
+    Initial D            8/12     5
+    Spy × Family         9/14     7
+    ```
+  * Clicking a series could show its individual volumes.
+    * And then have:
+      * 📷 Scan
+      * as the prominent action.
+11. [ ] Add fun stuff
+  * Read/unread tracking
+  * Duplicate detection
+  * Wishlist
+  * Ratings
+  * Notes
+  * Cover gallery
+  * Statistics
