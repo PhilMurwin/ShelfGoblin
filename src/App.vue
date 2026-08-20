@@ -48,7 +48,7 @@ async function lookupBook() {
     const data = await response.json()
 
     //console.log(data)
-    console.log(JSON.stringify(data.items?.[0]?.volumeInfo, null, 2))
+    //console.log(JSON.stringify(data.items?.[0]?.volumeInfo, null, 2))
 
     if (!data.items?.length) {
       error.value = 'No book found for that ISBN.'
@@ -66,75 +66,68 @@ async function lookupBook() {
 </script>
 
 <template>
-  <main>
+  <main class="w-full max-w-xl mx-auto px-6 py-16">
     <h1>Shelf Goblin</h1>
 
-    <div>
+    <div class="flex gap-3 mt-8">
       <input
         v-model="isbn"
         placeholder="Enter ISBN"
         @keyup.enter="lookupBook"
+        class="flex-1 px-4 py-3 rounded-lg border border-(--border) bg-(--bg) text-(--text-h) placeholder:text-(--text) focus:outline-none focus:ring-2 focus:ring-(--accent) focus:border-transparent transition-shadow"
       />
 
       <button
         @click="lookupBook"
         :disabled="loading"
+        class="px-6 py-3 rounded-lg font-medium bg-(--accent) text-white cursor-pointer hover:opacity-90 active:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
       >
         {{ loading ? 'Looking up...' : 'Look Up' }}
       </button>
     </div>
 
-    <p v-if="error">
+    <p v-if="error" class="mt-4 text-sm text-red-500">
       {{ error }}
     </p>
 
-    <section v-if="book">
+    <section v-if="book" class="mt-10 text-left">
       <img
         v-if="book.imageLinks?.thumbnail"
         :src="book.imageLinks.thumbnail"
         :alt="book.title"
+        class="rounded-md mb-6 shadow-md"
       />
 
       <h2>{{ book.title }}</h2>
 
-      <p v-if="book.subtitle">
+      <p v-if="book.subtitle" class="mt-1 italic text-(--text)">
         {{ book.subtitle }}
       </p>
 
-      <p v-if="book.authors">
-        <strong>Author:</strong>
-        {{ book.authors.join(', ') }}
-      </p>
+      <div class="mt-5 space-y-2 text-sm">
+        <p v-if="book.authors">
+          <strong>Author:</strong>
+          {{ book.authors.join(', ') }}
+        </p>
 
-      <p v-if="book.publisher">
-        <strong>Publisher:</strong>
-        {{ book.publisher }}
-      </p>
+        <p v-if="book.publisher">
+          <strong>Publisher:</strong>
+          {{ book.publisher }}
+        </p>
 
-      <p v-if="book.publishedDate">
-        <strong>Published:</strong>
-        {{ book.publishedDate }}
-      </p>
+        <p v-if="book.publishedDate">
+          <strong>Published:</strong>
+          {{ book.publishedDate }}
+        </p>
 
-      <p>
-        <strong>ISBN:</strong>
-        {{ isbn }}
-      </p>
+        <p>
+          <strong>ISBN:</strong>
+          {{ isbn }}
+        </p>
 
-      <div v-if="book.industryIdentifiers">
-        <strong>Identifiers:</strong>
-
-        <ul>
-          <li
-            v-for="identifier in book.industryIdentifiers"
-            :key="identifier.identifier"
-          >
-            {{ identifier.type }}: {{ identifier.identifier }}
-          </li>
-        </ul>
       </div>
 
-      <p v-if="book.description">
+      <p v-if="book.description" class="mt-6 text-sm leading-relaxed">
         {{ book.description }}
       </p>
     </section>
