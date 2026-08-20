@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import shelfGoblinBadge from '@/assets/ShelfGoblinBadge.png'
 
 interface BookInfo {
   title: string
@@ -67,7 +68,10 @@ async function lookupBook() {
 
 <template>
   <main class="w-full max-w-xl mx-auto px-6 py-16">
-    <h1>Shelf Goblin</h1>
+    <div class="flex items-center gap-3">
+      <img :src="shelfGoblinBadge" alt="Shelf Goblin" class="h-12 w-auto" />
+      <h1>Shelf Goblin</h1>
+    </div>
 
     <div class="flex gap-3 mt-8">
       <input
