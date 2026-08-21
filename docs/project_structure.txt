@@ -6,12 +6,16 @@ manga-tracker/
 ├── vite.config.ts
 │
 ├── public/
+├── docs/
 │
 └── src/
     ├── components/
     │   ├── BarcodeScanner.vue
-    │   ├── BookPreview.vue
-    │   └── MangaList.vue
+    │   ├── BookDetails.vue
+    │   └── BookShelf.vue
+    │
+    ├── models/
+    │   ├── book.ts
     │
     ├── services/
     │   ├── googleAuth.ts

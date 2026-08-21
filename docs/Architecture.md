@@ -94,11 +94,11 @@ can remain part of the title when appropriate.
 Google Books metadata may include information that is useful to the
 UI but does not need to be persisted.
 
-For example, descriptions may be displayed during the add/review
-process without becoming part of the BookShelf schema.
-
 Cover URLs are persisted in BookShelf so existing collection records
 can display their covers without additional Google Books API calls.
+
+Descriptions are persisted in BookShelf so existing collection records
+can display their stored metadata without additional Google Books API calls.
 
 ## Google Integration
 

@@ -6,12 +6,12 @@
   * [x] Enable Book API
   * [x] Enable Sheets API
   * [x] Configure OAuth
-4. [ ] Define the data model
+4. [x] Define the data model
   * Define the Book record stored in the BookShelf tab.
   * One row represents one physical book/edition.
   * ISBN is optional.
   * The BookShelf tab is intentionally human-readable and should be usable directly by the user without Shelf Goblin.
-5. [ ] Define a small Book Details component (BookDetails.vue)
+5. [x] Define a small Book Details component (BookDetails.vue)
   * Retrieve Google Books response, convert to Shelf Goblin data model
   * Display via BookDetails.vue from Data model
 6. [ ] Implement Sign in with Google
