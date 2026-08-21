@@ -119,11 +119,51 @@ the user's spreadsheet.
 Google-related functionality should be isolated behind services rather
 than coupled directly to Vue components.
 
-Planned services include:
+Services:
 
 - Google Books
 - Google Authentication
+- Google Drive (appdata only)
 - Google Sheets
+
+### OAuth scopes
+
+Shelf Goblin requests the minimum scopes required:
+
+| Scope | Purpose |
+|---|---|
+| `https://www.googleapis.com/auth/drive.file` | Read/write the spreadsheet Shelf Goblin creates — no access to the user's other files |
+| `https://www.googleapis.com/auth/drive.appdata` | Store the spreadsheet ID in the hidden appDataFolder |
+
+`drive.file` is used instead of the broader `spreadsheets` scope because it
+restricts access to only files the app created. The Google Sheets API accepts
+`drive.file` for spreadsheets the app owns, so no broader permission is needed.
+
+Broad Drive scopes (`drive`, `drive.readonly`, `drive.metadata`, etc.)
+and the `spreadsheets` scope are intentionally not requested.
+
+### Hidden application metadata
+
+Shelf Goblin stores a small JSON metadata file in Google's hidden
+`appDataFolder`. This file is invisible to the user in Google Drive and
+is private to this application.
+
+Current metadata structure:
+
+```json
+{
+  "spreadsheetId": "..."
+}
+```
+
+Filename: `Shelf Goblin Metadata.json`
+
+This allows Shelf Goblin to locate the user's spreadsheet across
+browsers and devices without storing the spreadsheet ID only in
+localStorage or requiring broad Drive access.
+
+Spreadsheet creation and writing book records to Google Sheets are
+handled in a subsequent milestone.
 
 ## Data Ownership
 

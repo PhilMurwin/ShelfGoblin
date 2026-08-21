@@ -1,6 +1,7 @@
 import { reactive, readonly } from 'vue'
 
-export const GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
+export const GOOGLE_DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+export const GOOGLE_DRIVE_APPDATA_SCOPE = 'https://www.googleapis.com/auth/drive.appdata'
 
 export interface GoogleIdentity {
   subject: string
@@ -161,9 +162,8 @@ export async function renderGoogleSignInButton(element: HTMLElement): Promise<vo
 }
 
 /**
- * Returns a non-expired Sheets access token. If the previous token expired,
- * Google may display an account/consent dialog and this must be called from a
- * user-driven action.
+ * Returns a non-expired access token covering Drive file and appdata scopes.
+ * Google may display an account/consent dialog; call from a user gesture.
  */
 export async function getAccessToken(): Promise<string> {
   if (hasUsableAccessToken()) {
@@ -210,7 +210,7 @@ function requestAccessToken(
   return new Promise((resolve, reject) => {
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: GOOGLE_SHEETS_SCOPE,
+      scope: `${GOOGLE_DRIVE_FILE_SCOPE} ${GOOGLE_DRIVE_APPDATA_SCOPE}`,
       callback: (response) => {
         if (response.error || !response.access_token || !response.expires_in) {
           reject(new Error(response.error_description ?? response.error ?? 'Google authorization failed.'))
