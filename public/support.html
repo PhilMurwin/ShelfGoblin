@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Support | Shelf Goblin</title>
+    <style>
+      :root { color-scheme: light dark; font: 16px/1.6 system-ui, sans-serif; }
+      body { max-width: 680px; margin: 0 auto; padding: 3rem 1.25rem; color: #242126; background: #fff; }
+      h1 { line-height: 1.2; margin-top: 0; }
+      label { display: block; margin-top: 1rem; font-weight: 600; }
+      input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: .35rem; padding: .7rem; border: 1px solid #c7c4ca; border-radius: .45rem; font: inherit; color: inherit; background: transparent; }
+      textarea { min-height: 10rem; resize: vertical; }
+      button { margin-top: 1.25rem; padding: .7rem 1.1rem; border: 0; border-radius: .45rem; color: #fff; background: #7c2bbd; font: inherit; font-weight: 600; cursor: pointer; }
+      @media (prefers-color-scheme: dark) { body { color: #f3f4f6; background: #16171d; } input, textarea { border-color: #5b5962; } a { color: #c084fc; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Shelf Goblin Support</h1>
+      <p>Have a question or found a problem? Send us a message and include enough detail for us to help.</p>
+
+      <!-- Replace the action with the application's email endpoint when support submissions are wired up. -->
+      <form action="#" method="post">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" autocomplete="name" required />
+
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+
+        <label for="subject">Subject</label>
+        <input id="subject" name="subject" type="text" required />
+
+        <label for="message">Message</label>
+        <textarea id="message" name="message" required></textarea>
+
+        <button type="submit">Send message</button>
+      </form>
+
+      <p><a href="/privacy.html">Privacy policy</a> · <a href="/">Return to Shelf Goblin</a></p>
+    </main>
+  </body>
+</html>

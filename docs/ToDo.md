@@ -14,7 +14,7 @@
 5. [x] Define a small Book Details component (BookDetails.vue)
   * Retrieve Google Books response, convert to Shelf Goblin data model
   * Display via BookDetails.vue from Data model
-6. [ ] Implement Sign in with Google
+6. [x] Implement Sign in with Google
   * The first usable screen should simply be:
     ```
     Shelf Goblin
@@ -88,7 +88,10 @@
     * And then have:
       * 📷 Scan
       * as the prominent action.
-11. [ ] Add fun stuff
+11. [ ] Before go live
+  * Set Privacy Policy URL in google oauth consent config
+  * Set Support URL in google oauth consent config
+12. [ ] Add fun stuff
   * Read/unread tracking
   * Duplicate detection
   * Wishlist

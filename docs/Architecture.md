@@ -20,6 +20,13 @@ Shelf Goblin does not maintain a separate application database.
 The user's collection is stored in their own Google Drive as a
 Google Sheet created by Shelf Goblin.
 
+Shelf Goblin will store the user's collection in a visible Google 
+Spreadsheet. The spreadsheet ID will be persisted in Google's 
+application-specific Drive appDataFolder so the application can 
+rediscover the user's spreadsheet across browsers/devices without 
+requiring broad Drive access. The BookShelf worksheet remains 
+human-readable and manually editable.
+
 The primary worksheet is named `BookShelf`.
 
 The BookShelf worksheet is intentionally human-readable and should

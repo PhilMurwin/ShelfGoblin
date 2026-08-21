@@ -1,72 +1,65 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import shelfGoblinBadge from '@/assets/ShelfGoblinBadge.png'
-import BookDetails from '@/components/BookDetails.vue'
-import type { BookDraft } from '@/models/book'
-import { canonicalizeIsbn, createBookDraft } from '@/services/bookDraft'
-import { lookupBookByIsbn } from '@/services/googleBooks'
+import { authState, renderGoogleSignInButton, signOut } from '@/services/googleAuth'
 
-const isbn = ref('')
-const bookDraft = ref<BookDraft | null>(null)
-const loading = ref(false)
-const error = ref('')
+const googleButton = ref<HTMLElement | null>(null)
+const setupError = ref<string | null>(null)
 
-async function lookupBook() {
-  const cleanIsbn = canonicalizeIsbn(isbn.value)
-
-  if (!cleanIsbn) {
+onMounted(async () => {
+  if (!googleButton.value) {
     return
   }
 
-  loading.value = true
-  error.value = ''
-  bookDraft.value = null
-
   try {
-    const metadata = await lookupBookByIsbn(cleanIsbn)
-
-    if (!metadata) {
-      error.value = 'No book found for that ISBN.'
-      return
-    }
-
-    bookDraft.value = createBookDraft(metadata, cleanIsbn)
-  } catch (err) {
-    console.error(err)
-    error.value = 'Unable to look up the book.'
-  } finally {
-    loading.value = false
+    await renderGoogleSignInButton(googleButton.value)
+  } catch (error) {
+    setupError.value = error instanceof Error ? error.message : 'Unable to set up Google sign-in.'
   }
-}
+})
 </script>
 
 <template>
-  <main class="w-full max-w-xl mx-auto px-6 py-16">
-    <div class="flex items-center gap-3">
+  <main class="w-full max-w-xl mx-auto px-6 py-16 text-left">
+    <div class="flex items-center gap-3 justify-center">
       <img :src="shelfGoblinBadge" alt="Shelf Goblin" class="h-12 w-auto" />
       <h1>Shelf Goblin</h1>
     </div>
 
-    <form class="flex gap-3 mt-8" @submit.prevent="lookupBook">
-      <input
-        v-model="isbn"
-        placeholder="Enter ISBN"
-        class="flex-1 px-4 py-3 rounded-lg border border-(--border) bg-(--bg) text-(--text-h) placeholder:text-(--text) focus:outline-none focus:ring-2 focus:ring-(--accent) focus:border-transparent transition-shadow"
+    <section v-if="!authState.user" class="mt-12 text-center">
+      <p class="text-lg">Track your books and reading progress.</p>
+      <div ref="googleButton" class="mt-8 flex justify-center" />
+      <p v-if="setupError || authState.error" class="mt-4 text-sm text-red-500">
+        {{ setupError ?? authState.error }}
+      </p>
+    </section>
+
+    <section v-else class="mt-12 rounded-xl border border-(--border) p-6 text-center">
+      <img
+        v-if="authState.user.picture"
+        :src="authState.user.picture"
+        :alt="`${authState.user.name} profile picture`"
+        class="mx-auto h-16 w-16 rounded-full"
       />
-
+      <h2 class="mt-4">Signed in as {{ authState.user.name }}</h2>
+      <p>{{ authState.user.email }}</p>
+      <p v-if="authState.loading" class="mt-3 text-sm">Signing in…</p>
+      <p v-else-if="authState.accessToken" class="mt-3 text-sm">Google Sheets access is authorized.</p>
+      <p v-else class="mt-3 text-sm">Ready to request Google Sheets access when it is needed.</p>
+      <p v-if="authState.error" class="mt-3 text-sm text-red-500">{{ authState.error }}</p>
       <button
-        :disabled="loading"
-        type="submit"
-        class="px-6 py-3 rounded-lg font-medium bg-(--accent) text-white cursor-pointer hover:opacity-90 active:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+        type="button"
+        class="mt-6 px-5 py-2 rounded-lg font-medium border border-(--border) cursor-pointer hover:bg-black/5 dark:hover:bg-white/10"
+        @click="signOut"
       >
-        {{ loading ? 'Looking up...' : 'Look Up' }}
+        Sign out
       </button>
-    </form>
+    </section>
 
-    <p v-if="error" class="mt-4 text-sm text-red-500">
-      {{ error }}
-    </p>
-
-    <BookDetails v-if="bookDraft" v-model="bookDraft" />
+    <footer class="mt-12 text-center text-sm">
+      <a href="/support.html" class="underline hover:opacity-80">Support</a>
+      <span class="mx-2">·</span>
+      <a href="/privacy.html" class="underline hover:opacity-80">Privacy policy</a>
+    </footer>
   </main>
 </template>
