@@ -25,7 +25,7 @@
     ```
   * The user authorizes the application.
   * Importantly, we're not creating an account system for the app. Google is effectively providing the identity.
-7. [ ] Create the user's spreadsheet
+7. [x] Create the user's spreadsheet
   * Google's Sheets API supports creating a spreadsheet directly and returns its spreadsheetId and URL.
     * BookShelf
       * The canonical collection data.

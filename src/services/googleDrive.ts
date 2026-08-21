@@ -83,3 +83,19 @@ export async function readMetadataFile(fileId: string): Promise<ShelfGoblinMetad
 
   return response.json() as Promise<ShelfGoblinMetadata>
 }
+
+export async function updateMetadataFile(
+  fileId: string,
+  metadata: ShelfGoblinMetadata,
+): Promise<void> {
+  const params = new URLSearchParams({ uploadType: 'media' })
+  const response = await authorizedFetch(`${DRIVE_UPLOAD_API}/files/${fileId}?${params}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(metadata),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Google Drive error ${response.status}: ${response.statusText}`)
+  }
+}

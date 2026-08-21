@@ -162,8 +162,11 @@ This allows Shelf Goblin to locate the user's spreadsheet across
 browsers and devices without storing the spreadsheet ID only in
 localStorage or requiring broad Drive access.
 
-Spreadsheet creation and writing book records to Google Sheets are
-handled in a subsequent milestone.
+The spreadsheet ID is stored in metadata so Shelf Goblin can locate the
+user's spreadsheet across browsers and devices. `ensureShelfGoblinSpreadsheet()`
+in `src/services/googleSheets.ts` handles finding or creating the spreadsheet
+and ensuring the BookShelf worksheet with its header row exists. Writing individual
+book records to the spreadsheet is handled in a subsequent milestone.
 
 ## Data Ownership
 

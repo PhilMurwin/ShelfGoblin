@@ -5,6 +5,7 @@ import {
   createMetadataFile,
   findMetadataFile,
   readMetadataFile,
+  updateMetadataFile,
 } from '../src/services/googleDrive'
 
 vi.mock('../src/services/googleAuth', () => ({
@@ -144,6 +145,37 @@ describe('Google Drive service', () => {
       mockFetch.mockResolvedValue(mockErrorResponse(404, 'Not Found'))
 
       await expect(readMetadataFile('missing-id')).rejects.toThrow('Google Drive error 404')
+    })
+  })
+
+  describe('updateMetadataFile', () => {
+    const metadata = { spreadsheetId: 'new-sheet-789' }
+
+    it('patches the file content using the media upload endpoint', async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ id: 'file-456' }))
+
+      await updateMetadataFile('file-456', metadata)
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/upload/drive/v3/files/file-456')
+      expect(url).toContain('uploadType=media')
+      expect(options.method).toBe('PATCH')
+      expect((options.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token')
+    })
+
+    it('sends the updated metadata as JSON', async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ id: 'file-456' }))
+
+      await updateMetadataFile('file-456', metadata)
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+      expect(options.body).toBe(JSON.stringify(metadata))
+    })
+
+    it('throws when the Drive API returns an error', async () => {
+      mockFetch.mockResolvedValue(mockErrorResponse(403, 'Forbidden'))
+
+      await expect(updateMetadataFile('file-456', metadata)).rejects.toThrow('Google Drive error 403')
     })
   })
 

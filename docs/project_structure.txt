@@ -18,10 +18,11 @@ manga-tracker/
     │   ├── book.ts
     │
     ├── services/
+    │   ├── bookDraft.ts
     │   ├── googleAuth.ts
     │   ├── googleBooks.ts
-    │   ├── googleDrive.ts
-    │   └── googleSheets.ts
+    │   ├── googleDrive.ts       ← appDataFolder metadata (spreadsheet ID)
+    │   └── googleSheets.ts      ← Sheets API + ensureShelfGoblinSpreadsheet()
     │
     ├── views/
     │   ├── Home.vue
