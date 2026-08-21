@@ -30,11 +30,15 @@ interface GoogleIdentityServices {
       initialize: (configuration: {
         client_id: string
         callback: (response: GoogleCredentialResponse) => void
+        auto_select?: boolean
+        use_fedcm_for_button?: boolean
+        button_auto_select?: boolean
       }) => void
       renderButton: (
         element: HTMLElement,
         options: Record<string, string | number | boolean>,
       ) => void
+      prompt: () => void
       disableAutoSelect: () => void
     }
     oauth2: {
@@ -109,11 +113,15 @@ export function decodeGoogleIdentity(credential: string): GoogleIdentity {
 }
 
 export function hasUsableAccessToken(now = Date.now()): boolean {
-  return Boolean(
-    state.accessToken &&
-      state.accessTokenExpiresAt &&
-      state.accessTokenExpiresAt > now + 60_000,
-  )
+  return isAccessTokenUsable(state.accessToken, state.accessTokenExpiresAt, now)
+}
+
+export function isAccessTokenUsable(
+  accessToken: string | null,
+  expiresAt: number | null,
+  now = Date.now(),
+): boolean {
+  return Boolean(accessToken && expiresAt && expiresAt > now + 60_000)
 }
 
 /**
@@ -127,6 +135,13 @@ export async function renderGoogleSignInButton(element: HTMLElement): Promise<vo
   configuredClientId = clientId
   google.accounts.id.initialize({
     client_id: clientId,
+    // One Tap can automatically return a credential for a previously
+    // authorized account when Google's privacy and browser conditions allow it.
+    auto_select: true,
+    // Use the current FedCM button flow and its supported returning-user
+    // automatic selection behavior where the browser supports it.
+    use_fedcm_for_button: true,
+    button_auto_select: true,
     callback: (response) => {
       void handleIdentityCredential(response)
     },
@@ -139,6 +154,9 @@ export async function renderGoogleSignInButton(element: HTMLElement): Promise<vo
     text: 'signin_with',
     shape: 'rectangular',
   })
+  // The button is the explicit fallback; One Tap is what enables an
+  // automatic sign-in attempt on a later visit without a button click.
+  google.accounts.id.prompt()
   state.initialized = true
 }
 
