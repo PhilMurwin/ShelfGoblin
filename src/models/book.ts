@@ -16,7 +16,7 @@ export interface Book {
 }
 
 /**
- * A Book being reviewed before it is saved to BookShelf.
+  * A book record stored in the BookShelf collection.
  */
 export interface BookDraft extends Book {
 

@@ -1,3 +1,5 @@
+import type { Book } from '@/models/book'
+import { canonicalizeIsbn } from '../services/bookDraft.ts'
 import { getAccessToken } from './googleAuth'
 import { findMetadataFile, readMetadataFile, createMetadataFile, updateMetadataFile } from './googleDrive'
 
@@ -21,6 +23,10 @@ export const BOOKSHELF_HEADERS = [
   'Notes',
 ]
 
+export type AddBookResult =
+  | { added: true; rowNumber: number }
+  | { added: false; reason: 'duplicate'; existingRowNumber: number }
+
 export interface SheetInfo {
   sheetId: number
   title: string
@@ -29,6 +35,12 @@ export interface SheetInfo {
 export interface SpreadsheetInfo {
   spreadsheetId: string
   sheets: SheetInfo[]
+}
+
+interface ShelfBookMatch {
+  rowNumber: number
+  isbn: string
+  title: string
 }
 
 export class SheetsApiError extends Error {
@@ -217,4 +229,139 @@ function parseSpreadsheetResponse(data: unknown): SpreadsheetInfo {
     : []
 
   return { spreadsheetId: d.spreadsheetId, sheets }
+}
+
+export async function findBookInShelf(
+  spreadsheetId: string,
+  sheetTitle: string,
+  book: Book,
+): Promise<ShelfBookMatch | null> {
+  const range = encodeURIComponent(`${sheetTitle}!A:B`)
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}`,
+    {
+      method: 'GET',
+    },
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
+  }
+
+  const data = (await response.json()) as {
+    values?: string[][]
+  }
+
+  const rows = data.values ?? []
+
+  // Skip the header row.
+  for (let index = 1; index < rows.length; index++) {
+    const row = rows[index]
+    const existingIsbn = row?.[0]?.trim() ?? ''
+    const existingTitle = row?.[1]?.trim() ?? ''
+
+    if (book.isbn) {
+      if (
+        existingIsbn &&
+        canonicalizeIsbn(existingIsbn) === canonicalizeIsbn(book.isbn)
+      ) {
+        return {
+          rowNumber: index + 1,
+          isbn: existingIsbn,
+          title: existingTitle,
+        }
+      }
+    } else if (
+      existingTitle &&
+      existingTitle.toLowerCase() === book.title.trim().toLowerCase()
+    ) {
+      return {
+        rowNumber: index + 1,
+        isbn: existingIsbn,
+        title: existingTitle,
+      }
+    }
+  }
+
+  return null
+}
+
+export async function addBookToShelf(
+  spreadsheetId: string,
+  sheetTitle: string,
+  book: Book,
+): Promise<AddBookResult> {
+  const existingBook = await findBookInShelf(spreadsheetId, sheetTitle, book,)
+
+  if (existingBook) {
+    return {
+      added: false,
+      reason: 'duplicate',
+      existingRowNumber: existingBook.rowNumber,
+    }
+  }
+
+  const range = encodeURIComponent(`${sheetTitle}!A:M`)
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}:append?valueInputOption=RAW`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        values: [[
+          book.isbn ?? '',
+          book.title,
+          book.series,
+          book.volume,
+          book.authors,
+          book.publisher,
+          book.published,
+          book.coverUrl,
+          book.description,
+          book.read,
+          book.dateRead,
+          book.rating ?? '',
+          book.notes,
+        ]],
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
+  }
+
+  const data = (await response.json()) as {
+    updates?: {
+      updatedRange?: string
+    }
+  }
+
+  // The Sheets API normally returns something like:
+  // BookShelf!A2:M2
+  const updatedRange = data.updates?.updatedRange
+  const rowNumber = updatedRange ? Number(updatedRange.match(/\d+/)?.[0]) : 0
+
+  return {
+    added: true,
+    rowNumber,
+  }
+}
+
+export async function countBooksInShelf(
+  spreadsheetId: string,
+  sheetTitle: string,
+): Promise<number> {
+  const range = encodeURIComponent(`${sheetTitle}!B2:B`)
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}`,
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
+  }
+
+  const data = (await response.json()) as { values?: string[][] }
+
+  return data.values?.filter((row) => row[0]?.trim()).length ?? 0
 }

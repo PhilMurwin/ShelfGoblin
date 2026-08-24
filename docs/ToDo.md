@@ -36,7 +36,7 @@
       * Settings
       * Wishlist
   * The spreadsheet itself remains in the user's Google account.
-8. [ ] Build the confirmation screen
+8. [x] Build the confirmation screen
   * Don't immediately write the result to the spreadsheet.
   * After scanning/looking up:
     ```

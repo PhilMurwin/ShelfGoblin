@@ -52,6 +52,9 @@ interface GoogleIdentityServices {
   }
 }
 
+let googleLibrary: Promise<GoogleIdentityServices> | null = null
+let configuredClientId: string | null = null
+
 declare global {
   interface Window {
     google?: GoogleIdentityServices
@@ -75,9 +78,6 @@ const state = reactive<AuthState>({
   accessToken: null,
   accessTokenExpiresAt: null,
 })
-
-let googleLibrary: Promise<GoogleIdentityServices> | null = null
-let configuredClientId: string | null = null
 
 export const authState = readonly(state)
 
@@ -125,28 +125,49 @@ export function isAccessTokenUsable(
   return Boolean(accessToken && expiresAt && expiresAt > now + 60_000)
 }
 
+let initializationPromise: Promise<void> | null = null
+
+export async function initializeGoogleAuth(): Promise<void> {
+  if (initializationPromise) {
+    return initializationPromise
+  }
+
+  initializationPromise = (async () => {
+      const clientId = getClientId()
+      const google = await loadGoogleIdentityServices()
+
+      configuredClientId = clientId
+      
+      google.accounts.id.initialize({
+        client_id: clientId,
+        // One Tap can automatically return a credential for a previously
+        // authorized account when Google's privacy and browser conditions allow it.
+        auto_select: true,
+        // Use the current FedCM button flow and its supported returning-user
+        // automatic selection behavior where the browser supports it.
+        use_fedcm_for_button: true,
+        button_auto_select: true,
+        callback: (response) => {
+          void handleIdentityCredential(response)
+        },
+      })
+
+      state.initialized = true
+
+      // The button is the explicit fallback; One Tap is what enables an
+      // automatic sign-in attempt on a later visit without a button click.
+      google.accounts.id.prompt()
+  })()
+  
+  return initializationPromise
+}
+
 /**
  * Renders Google's own sign-in button. Google Sheets consent is intentionally
  * deferred until a Sheets action calls getAccessToken from a user gesture.
  */
 export async function renderGoogleSignInButton(element: HTMLElement): Promise<void> {
-  const clientId = getClientId()
   const google = await loadGoogleIdentityServices()
-
-  configuredClientId = clientId
-  google.accounts.id.initialize({
-    client_id: clientId,
-    // One Tap can automatically return a credential for a previously
-    // authorized account when Google's privacy and browser conditions allow it.
-    auto_select: true,
-    // Use the current FedCM button flow and its supported returning-user
-    // automatic selection behavior where the browser supports it.
-    use_fedcm_for_button: true,
-    button_auto_select: true,
-    callback: (response) => {
-      void handleIdentityCredential(response)
-    },
-  })
 
   element.replaceChildren()
   google.accounts.id.renderButton(element, {
@@ -155,10 +176,6 @@ export async function renderGoogleSignInButton(element: HTMLElement): Promise<vo
     text: 'signin_with',
     shape: 'rectangular',
   })
-  // The button is the explicit fallback; One Tap is what enables an
-  // automatic sign-in attempt on a later visit without a button click.
-  google.accounts.id.prompt()
-  state.initialized = true
 }
 
 /**

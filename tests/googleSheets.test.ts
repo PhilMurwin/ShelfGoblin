@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Book } from '@/models/book'
 import { getAccessToken } from '../src/services/googleAuth'
 import {
   findMetadataFile,
@@ -10,6 +11,7 @@ import {
   BOOKSHELF_HEADERS,
   BOOKSHELF_SHEET_NAME,
   SPREADSHEET_NAME,
+  SheetsApiError,
   SpreadsheetNotFoundError,
   addWorksheet,
   createSpreadsheet,
@@ -18,6 +20,8 @@ import {
   readFirstRowCell,
   recreateShelfGoblinSpreadsheet,
   writeHeaderRow,
+  findBookInShelf,
+  addBookToShelf,
 } from '../src/services/googleSheets'
 
 vi.mock('../src/services/googleAuth', () => ({
@@ -56,6 +60,23 @@ function spreadsheetResponse(spreadsheetId: string, sheetTitles: string[] = [BOO
     sheets: sheetTitles.map((title, i) => ({ properties: { sheetId: i, title } })),
   }
 }
+
+const createTestBook = (overrides: Partial<Book> = {}): Book => ({
+    isbn: '9781234567890',
+    title: 'Initial D Vol. 1',
+    series: '',
+    volume: '1',
+    authors: '',
+    publisher: '',
+    published: '',
+    coverUrl: '',
+    description: '',
+    read: false,
+    dateRead: '',
+    rating: null,
+    notes: '',
+    ...overrides,
+  })
 
 describe('Google Sheets API functions', () => {
   let mockFetch: ReturnType<typeof vi.fn>
@@ -635,5 +656,391 @@ describe('recreateShelfGoblinSpreadsheet', () => {
       'Google Sheets error 500',
     )
     expect(mockUpdateMetadataFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('findBookInShelf', () => {
+  let mockFetch: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+    mockGetAccessToken.mockResolvedValue('test-token')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  const mockShelfRows = (rows: string[][]) => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({ values: rows }),
+        { status: 200 },
+      ),
+    )
+  }
+
+  it('finds a book by ISBN', async () => {
+    mockShelfRows([
+      ['ISBN', 'Title'],
+      ['9781234567890', 'Initial D Vol. 1'],
+    ])
+
+    const result = await findBookInShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook(),
+    )
+
+    expect(result).toEqual({
+      rowNumber: 2,
+      isbn: '9781234567890',
+      title: 'Initial D Vol. 1',
+    })
+  })
+
+  it('finds a book when the stored ISBN contains formatting characters', async () => {
+    mockShelfRows([
+      ['ISBN', 'Title'],
+      ['978-1-2345-6789-0', 'Initial D Vol. 1'],
+    ])
+
+    const result = await findBookInShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook(),
+    )
+
+    expect(result).toEqual({
+      rowNumber: 2,
+      isbn: '978-1-2345-6789-0',
+      title: 'Initial D Vol. 1',
+    })
+  })
+
+  it('finds a book by title when the book has no ISBN', async () => {
+    mockShelfRows([
+      ['ISBN', 'Title'],
+      ['9781234567890', 'Initial D Vol. 1'],
+    ])
+
+    const result = await findBookInShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook({
+        isbn: undefined,
+      }),
+    )
+
+    expect(result).toEqual({
+      rowNumber: 2,
+      isbn: '9781234567890',
+      title: 'Initial D Vol. 1',
+    })
+  })
+
+  it('matches a title without regard to case or surrounding whitespace', async () => {
+    mockShelfRows([
+      ['ISBN', 'Title'],
+      ['9781234567890', '  INITIAL D VOL. 1  '],
+    ])
+
+    const result = await findBookInShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook({
+        isbn: undefined,
+        title: 'Initial D Vol. 1',
+      }),
+    )
+
+    expect(result).toEqual({
+      rowNumber: 2,
+      isbn: '9781234567890',
+      title: 'INITIAL D VOL. 1',
+    })
+  })
+
+  it('no match found due to different ISBN', async () => {
+    mockShelfRows([
+      ['ISBN', 'Title'],
+      ['9789999999999', 'Initial D Vol. 1'],
+    ])
+
+    const result = await findBookInShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook(),
+    )
+
+    expect(result).toBeNull()
+  })
+})
+
+describe('addBookToShelf', () => {
+  let mockFetch: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+    mockGetAccessToken.mockResolvedValue('test-token')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  const mockShelfRows = (rows: string[][]) => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({ values: rows }),
+        { status: 200 },
+      ),
+    )
+  }
+
+  it('does not add a book that already exists', async () => {
+    mockShelfRows([
+      ['ISBN', 'Title'],
+      ['9781234567890', 'Initial D Vol. 1'],
+    ])
+
+    const result = await addBookToShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook(),
+    )
+
+    expect(result).toEqual({
+      added: false,
+      reason: 'duplicate',
+      existingRowNumber: 2,
+    })
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds a book that does not already exist', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            values: [
+              ['ISBN', 'Title'],
+              ['9789999999999', 'Another Book'],
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            updates: {
+              updatedRange: 'BookShelf!A3:M3',
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+
+    const result = await addBookToShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      createTestBook(),
+    )
+
+    expect(result).toEqual({
+      added: true,
+      rowNumber: 3,
+    })
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(':append'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          values: [[
+            '9781234567890',
+            'Initial D Vol. 1',
+            '',
+            '1',
+            '',
+            '',
+            '',
+            '',
+            '',
+            false,
+            '',
+            '',
+            '',
+          ]],
+        }),
+      }),
+    )
+  })
+
+  it('writes all book fields in the correct column order', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            values: [
+              ['ISBN', 'Title'],
+              ['9789999999999', 'Another Book'],
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            updates: {
+              updatedRange: 'BookShelf!A3:M3',
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+
+    const book = createTestBook({
+      isbn: '9781234567890',
+      title: 'Initial D Vol. 1',
+      series: 'Initial D',
+      volume: '1',
+      authors: 'Shuichi Shigeno',
+      publisher: 'Kodansha',
+      published: '1996-06-01',
+      coverUrl: 'https://example.com/cover.jpg',
+      description: 'A story about street racing.',
+      read: true,
+      dateRead: '2026-08-23',
+      rating: 5,
+      notes: 'Found at the used bookstore.',
+    })
+
+    const result = await addBookToShelf(
+      'spreadsheet-id',
+      'BookShelf',
+      book,
+    )
+
+    expect(result).toEqual({
+      added: true,
+      rowNumber: 3,
+    })
+
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(':append'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          values: [[
+            '9781234567890',
+            'Initial D Vol. 1',
+            'Initial D',
+            '1',
+            'Shuichi Shigeno',
+            'Kodansha',
+            '1996-06-01',
+            'https://example.com/cover.jpg',
+            'A story about street racing.',
+            true,
+            '2026-08-23',
+            5,
+            'Found at the used bookstore.',
+          ]],
+        }),
+      }),
+    )
+  })
+
+  it('throws when checking for an existing book fails', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(null, {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }),
+    )
+
+    await expect(
+      addBookToShelf(
+        'spreadsheet-id',
+        'BookShelf',
+        createTestBook(),
+      ),
+    ).rejects.toThrow(SheetsApiError)
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws when appending the book fails', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            values: [
+              ['ISBN', 'Title'],
+              ['9789999999999', 'Another Book'],
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 500,
+          statusText: 'Internal Server Error',
+        }),
+      )
+
+    await expect(
+      addBookToShelf(
+        'spreadsheet-id',
+        'BookShelf',
+        createTestBook(),
+      ),
+    ).rejects.toThrow(SheetsApiError)
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws when appending the book fails', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            values: [
+              ['ISBN', 'Title'],
+              ['9789999999999', 'Another Book'],
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 500,
+          statusText: 'Internal Server Error',
+        }),
+      )
+
+    await expect(
+      addBookToShelf(
+        'spreadsheet-id',
+        'BookShelf',
+        createTestBook(),
+      ),
+    ).rejects.toThrow(SheetsApiError)
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })
