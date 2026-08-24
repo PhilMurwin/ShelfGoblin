@@ -4,6 +4,7 @@ import { authState, initializeGoogleAuth } from '@/services/googleAuth'
 import LoginView from '@/views/LoginView.vue'
 import HomeView from '@/views/HomeView.vue'
 import AddBookView from '@/views/AddBookView.vue'
+import EditBookView from '@/views/EditBookView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,12 @@ const router = createRouter({
       path: '/add',
       name: 'add-book',
       component: AddBookView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/edit',
+      name: 'edit-book',
+      component: EditBookView,
       meta: { requiresAuth: true },
     },
   ],

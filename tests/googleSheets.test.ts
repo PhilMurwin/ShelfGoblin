@@ -22,6 +22,8 @@ import {
   writeHeaderRow,
   findBookInShelf,
   addBookToShelf,
+  getBooksFromShelf,
+  setBookRead,
 } from '../src/services/googleSheets'
 
 vi.mock('../src/services/googleAuth', () => ({
@@ -1042,5 +1044,208 @@ describe('addBookToShelf', () => {
     ).rejects.toThrow(SheetsApiError)
 
     expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('getBooksFromShelf', () => {
+  let mockFetch: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+    mockGetAccessToken.mockResolvedValue('test-token')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  const headerRow = ['ISBN', 'Title', 'Series', 'Volume', 'Authors', 'Publisher', 'Published', 'Cover URL', 'Description', 'Read', 'Date Read', 'Rating', 'Notes']
+  const fullBookRow = ['9781234567890', 'Initial D Vol. 1', 'Initial D', '1', 'Shuichi Shigeno', 'Kodansha', '1996-06-01', 'https://example.com/cover.jpg', 'Street racing manga.', 'TRUE', '2026-01-15', '5', 'Great read!']
+
+  it('maps a normal BookShelf row to a Book', async () => {
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, fullBookRow] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books).toHaveLength(1)
+    expect(books[0]).toEqual({
+      isbn: '9781234567890',
+      title: 'Initial D Vol. 1',
+      series: 'Initial D',
+      volume: '1',
+      authors: 'Shuichi Shigeno',
+      publisher: 'Kodansha',
+      published: '1996-06-01',
+      coverUrl: 'https://example.com/cover.jpg',
+      description: 'Street racing manga.',
+      read: true,
+      dateRead: '2026-01-15',
+      rating: 5,
+      notes: 'Great read!',
+    })
+  })
+
+  it('returns multiple books in the correct order', async () => {
+    const row2 = ['9789876543210', 'One Piece Vol. 12', 'One Piece', '12', 'Eiichiro Oda', 'Viz Media', '2001-01-01', '', '', 'FALSE', '', '', '']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, fullBookRow, row2] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books).toHaveLength(2)
+    expect(books[0].title).toBe('Initial D Vol. 1')
+    expect(books[1].title).toBe('One Piece Vol. 12')
+  })
+
+  it('handles empty optional fields correctly', async () => {
+    const row = ['', 'Untitled Book', '', '', '', '', '', '', '', 'FALSE', '', '', '']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, row] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books[0].isbn).toBeUndefined()
+    expect(books[0].series).toBe('')
+    expect(books[0].authors).toBe('')
+    expect(books[0].coverUrl).toBe('')
+    expect(books[0].notes).toBe('')
+  })
+
+  it('allows a book without an ISBN', async () => {
+    const row = ['', 'No ISBN Book', 'A Series', '1', 'Some Author', '', '', '', '', 'FALSE', '', '', '']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, row] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books[0].isbn).toBeUndefined()
+    expect(books[0].title).toBe('No ISBN Book')
+  })
+
+  it('maps Read TRUE to true and Read FALSE to false', async () => {
+    const readRow    = ['', 'Book A', '', '', '', '', '', '', '', 'TRUE',  '', '', '']
+    const unreadRow  = ['', 'Book B', '', '', '', '', '', '', '', 'FALSE', '', '', '']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, readRow, unreadRow] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books[0].read).toBe(true)
+    expect(books[1].read).toBe(false)
+  })
+
+  it('maps an empty Rating to null', async () => {
+    const row = ['', 'Unrated Book', '', '', '', '', '', '', '', 'FALSE', '', '', '']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, row] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books[0].rating).toBeNull()
+  })
+
+  it('maps a numeric Rating to a number', async () => {
+    const row = ['', 'Rated Book', '', '', '', '', '', '', '', 'TRUE', '2026-01-01', '4', '']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, row] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books[0].rating).toBe(4)
+  })
+
+  it('returns an empty array for a header-only sheet', async () => {
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books).toEqual([])
+  })
+
+  it('handles short/incomplete rows safely', async () => {
+    const shortRow = ['9781234567890', 'Truncated Book']
+
+    mockFetch.mockResolvedValue(okResponse({ values: [headerRow, shortRow] }))
+
+    const books = await getBooksFromShelf('sheet-id', 'BookShelf')
+
+    expect(books).toHaveLength(1)
+    expect(books[0].title).toBe('Truncated Book')
+    expect(books[0].series).toBe('')
+    expect(books[0].read).toBe(false)
+    expect(books[0].rating).toBeNull()
+  })
+
+  it('throws SheetsApiError on a Sheets API failure', async () => {
+    mockFetch.mockResolvedValue(errorResponse(500, 'Internal Server Error'))
+
+    await expect(getBooksFromShelf('sheet-id', 'BookShelf')).rejects.toThrow(SheetsApiError)
+  })
+})
+
+describe('setBookRead', () => {
+  let mockFetch: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+    mockGetAccessToken.mockResolvedValue('test-token')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  const shelfWithBookResponse = () =>
+    okResponse({ values: [['ISBN', 'Title'], ['9781234567890', 'Initial D Vol. 1']] })
+
+  it('writes the new read value to column J of the matched row', async () => {
+    mockFetch
+      .mockResolvedValueOnce(shelfWithBookResponse())
+      .mockResolvedValueOnce(okResponse({ updatedCells: 1 }))
+
+    await setBookRead('sheet-id', 'BookShelf', createTestBook(), true)
+
+    const [putUrl, putOptions] = mockFetch.mock.calls[1] as [string, RequestInit]
+    expect(putUrl).toContain('J2')
+    expect(putUrl).toContain('valueInputOption=RAW')
+    expect(putOptions.method).toBe('PUT')
+    const body = JSON.parse(putOptions.body as string) as { values: unknown[][] }
+    expect(body.values).toEqual([[true]])
+  })
+
+  it('writes false when marking a book as unread', async () => {
+    mockFetch
+      .mockResolvedValueOnce(shelfWithBookResponse())
+      .mockResolvedValueOnce(okResponse({ updatedCells: 1 }))
+
+    await setBookRead('sheet-id', 'BookShelf', createTestBook(), false)
+
+    const [, putOptions] = mockFetch.mock.calls[1] as [string, RequestInit]
+    const body = JSON.parse(putOptions.body as string) as { values: unknown[][] }
+    expect(body.values).toEqual([[false]])
+  })
+
+  it('throws when the book is not found in the shelf', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ values: [['ISBN', 'Title']] }), { status: 200 }),
+    )
+
+    await expect(
+      setBookRead('sheet-id', 'BookShelf', createTestBook(), true),
+    ).rejects.toThrow('Book not found')
+  })
+
+  it('throws SheetsApiError when the PUT request fails', async () => {
+    mockFetch
+      .mockResolvedValueOnce(shelfWithBookResponse())
+      .mockResolvedValueOnce(errorResponse(500, 'Internal Server Error'))
+
+    await expect(
+      setBookRead('sheet-id', 'BookShelf', createTestBook(), true),
+    ).rejects.toThrow(SheetsApiError)
   })
 })

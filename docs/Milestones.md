@@ -9,8 +9,9 @@
   * [x] `appDataFolder` metadata stores the spreadsheet ID (`Shelf Goblin Metadata.json`)
   * [x] `ensureShelfGoblinSpreadsheet()` — finds or creates the spreadsheet, ensures BookShelf worksheet and header row exist
   * [x] Write/read individual book records
-3. [ ] Collection
-  * Browse/search/edit/delete collection.
+3. [x] Collection
+  * [x] Browse/search collection.
+  * [x] Edit/delete collection.
 4. [ ] Scanner
   * Phone camera → ISBN → book lookup.
 5. [ ] Polish

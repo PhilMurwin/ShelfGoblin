@@ -286,6 +286,33 @@ export async function findBookInShelf(
   return null
 }
 
+export async function setBookRead(
+  spreadsheetId: string,
+  sheetTitle: string,
+  book: Book,
+  read: boolean,
+): Promise<void> {
+  const match = await findBookInShelf(spreadsheetId, sheetTitle, book)
+  if (!match) {
+    throw new Error(`Book not found in shelf: ${book.title}`)
+  }
+
+  // Read is column J (the 10th column, 0-based index 9)
+  const range = encodeURIComponent(`${sheetTitle}!J${match.rowNumber}`)
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[read]] }),
+    },
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
+  }
+}
+
 export async function addBookToShelf(
   spreadsheetId: string,
   sheetTitle: string,
@@ -345,6 +372,136 @@ export async function addBookToShelf(
   return {
     added: true,
     rowNumber,
+  }
+}
+
+export async function getBooksFromShelf(
+  spreadsheetId: string,
+  sheetTitle: string,
+): Promise<Book[]> {
+  const range = encodeURIComponent(`${sheetTitle}!A:M`)
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}`,
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
+  }
+
+  const data = (await response.json()) as { values?: string[][] }
+  const rows = data.values ?? []
+
+  // First row is the header; skip it.
+  if (rows.length <= 1) return []
+
+  return rows.slice(1).map(rowToBook)
+}
+
+function rowToBook(row: string[]): Book {
+  const get = (i: number): string => row[i]?.trim() ?? ''
+
+  const isbnRaw = get(0)
+  const ratingRaw = get(11)
+  const ratingNum = ratingRaw === '' ? NaN : Number(ratingRaw)
+
+  return {
+    ...(isbnRaw ? { isbn: isbnRaw } : {}),
+    title: get(1),
+    series: get(2),
+    volume: get(3),
+    authors: get(4),
+    publisher: get(5),
+    published: get(6),
+    coverUrl: get(7),
+    description: get(8),
+    read: get(9).toLowerCase() === 'true',
+    dateRead: get(10),
+    rating: isNaN(ratingNum) ? null : ratingNum,
+    notes: get(12),
+  }
+}
+
+export async function updateBookInShelf(
+  spreadsheetId: string,
+  sheetTitle: string,
+  originalBook: Book,
+  updatedBook: Book,
+): Promise<void> {
+  const match = await findBookInShelf(spreadsheetId, sheetTitle, originalBook)
+  if (!match) {
+    throw new Error(`Book not found in shelf: ${originalBook.title}`)
+  }
+
+  const range = encodeURIComponent(`${sheetTitle}!A${match.rowNumber}:M${match.rowNumber}`)
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        values: [[
+          updatedBook.isbn ?? '',
+          updatedBook.title,
+          updatedBook.series,
+          updatedBook.volume,
+          updatedBook.authors,
+          updatedBook.publisher,
+          updatedBook.published,
+          updatedBook.coverUrl,
+          updatedBook.description,
+          updatedBook.read,
+          updatedBook.dateRead,
+          updatedBook.rating ?? '',
+          updatedBook.notes,
+        ]],
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
+  }
+}
+
+export async function deleteBookFromShelf(
+  spreadsheetId: string,
+  sheetTitle: string,
+  book: Book,
+): Promise<void> {
+  const match = await findBookInShelf(spreadsheetId, sheetTitle, book)
+  if (!match) {
+    throw new Error(`Book not found in shelf: ${book.title}`)
+  }
+
+  const spreadsheetInfo = await getSpreadsheet(spreadsheetId)
+  const sheet = spreadsheetInfo.sheets.find((s) => s.title === sheetTitle)
+  if (!sheet) {
+    throw new Error(`Sheet "${sheetTitle}" not found.`)
+  }
+
+  // DeleteDimensionRequest uses 0-based indices; rowNumber is 1-based spreadsheet row
+  const response = await authorizedFetch(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheet.sheetId,
+              dimension: 'ROWS',
+              startIndex: match.rowNumber - 1,
+              endIndex: match.rowNumber,
+            },
+          },
+        }],
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    throw new SheetsApiError(response.status, response.statusText)
   }
 }
 

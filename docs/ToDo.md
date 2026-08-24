@@ -64,35 +64,33 @@
       * Published
       * ISBN (optional)
     * before saving it.
-9. [ ] Add the phone camera scanner
+9. [x] Build the collection interface
+  * Browse and search the collection. One row per book.
+    ```
+    Your Book Shelf
+    42 books in your collection.
+
+    Search: [________________]  [ List | Cards ]  [ Add a Book ]
+    ──────────────────────────────────────────────────────────────
+    [img]  Title              Series        Vol.  Author    Status
+           One Piece, Vol 42  One Piece      42   Oda       [Read]
+           Death Note, Vol 1  Death Note      1   Ohba      [Unread]
+    ```
+  * Search filters by title, series, author, or ISBN.
+  * List view (table) and card view toggle.
+  * Read/unread toggle per book.
+10. [ ] Add the phone camera scanner
   * Once the ISBN lookup works, add the camera.
   * Make the scanner automatically restart after adding a book.
     * That way you can sit in front of a shelf and go:
       > scan → confirm → scan → confirm → scan → confirm
     * rather than navigating through the app every time.
-10. [ ] Build the collection interface
-  * add the actual collection view.
-    ```
-    My Collection
-
-    Search: [________________]
-
-    Series             Owned    Read
-    ────────────────────────────────
-    One Piece           42/110   35
-    Death Note          12/12    12
-    Initial D            8/12     5
-    Spy × Family         9/14     7
-    ```
-  * Clicking a series could show its individual volumes.
-    * And then have:
-      * 📷 Scan
-      * as the prominent action.
 11. [ ] Before go live
   * Set Privacy Policy URL in google oauth consent config
   * Set Support URL in google oauth consent config
 12. [ ] Add fun stuff
   * Read/unread tracking
+  * Series view (group by series, show owned/total volume counts and read progress)
   * Duplicate detection
   * Wishlist
   * Ratings

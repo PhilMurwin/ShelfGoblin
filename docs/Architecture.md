@@ -63,15 +63,18 @@ display and operation.
 Shelf Goblin should not query Google Books again simply to display
 an existing book.
 
-### Metadata refresh
+### Metadata refresh (planned)
 
-Google Books may be queried again only when:
+Google Books should only be queried again when:
 
 - adding a new book, or
 - the user explicitly requests a metadata refresh.
 
 Refreshing metadata should not silently overwrite user corrections.
 The user should be able to review changes before applying them.
+
+This feature is not yet implemented. Currently Google Books is only queried
+during the Add Book flow.
 
 ### ISBN
 
@@ -95,6 +98,18 @@ Volume is stored as text because values may include things such as:
 
 Format is not tracked as a separate field. Edition/format information
 can remain part of the title when appropriate.
+
+### Read tracking
+
+Each book record tracks whether the user has read it (`read: boolean`) and,
+if so, the date it was read (`dateRead`). These are user-managed fields;
+they are not sourced from Google Books.
+
+### Rating
+
+Each book record may have a numeric rating (`rating`) on a 1–5 scale with
+half-step precision (e.g. 3.5). A null rating means unrated. Ratings are
+user-managed and are not sourced from Google Books.
 
 ### Google Books data
 
