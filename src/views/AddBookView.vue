@@ -76,6 +76,7 @@ async function addBook() {
     if (result.added)
     {
       saveMessage.value = `${bookDraft.value.title} has been added to your collection`
+      bookDraft.value = null
     }
     else {
       saveError.value = 'This book is already in your collection'
@@ -127,9 +128,8 @@ async function addBook() {
       <p v-if="saveError" class="mt-4 text-sm text-red-500 text-center">
         {{ saveError }}
       </p>
-
-      <p v-if="saveMessage" class="mt-4 text-sm text-center">
-        {{ saveMessage }}
-      </p>
     </div>
+    <p v-if="saveMessage" class="mt-4 text-sm text-center">
+      {{ saveMessage }}
+    </p>
 </template>
