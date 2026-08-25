@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import type { BookDraft } from '@/models/book'
 import BookDetails from '@/components/BookDetails.vue'
 import BarcodeScanner from '@/components/BarcodeScanner.vue'
@@ -24,6 +24,17 @@ const saving = ref(false)
 const saveError = ref<string | null>(null)
 const saveMessage = ref<string | null>(null)
 
+let restartTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRestartTimer() {
+  if (restartTimer !== null) {
+    clearTimeout(restartTimer)
+    restartTimer = null
+  }
+}
+
+onUnmounted(clearRestartTimer)
+
 onMounted(async () => {
   try {
     const result = await ensureShelfGoblinSpreadsheet()
@@ -34,6 +45,7 @@ onMounted(async () => {
 })
 
 function toggleScanner() {
+  clearRestartTimer()
   if (!showScanner.value) bookDraft.value = null
   showScanner.value = !showScanner.value
 }
@@ -87,10 +99,15 @@ async function addBook() {
   try {
     const result = await addBookToShelf(spreadsheetId.value, 'BookShelf', bookDraft.value)
 
-    if (result.added)
-    {
-      saveMessage.value = `${bookDraft.value.title} has been added to your collection`
+    if (result.added) {
+      const title = bookDraft.value.title
       bookDraft.value = null
+      isbn.value = ''
+      saveMessage.value = `${title} added to your collection`
+      restartTimer = setTimeout(() => {
+        saveMessage.value = null
+        showScanner.value = true
+      }, 1800)
     }
     else {
       saveError.value = 'This book is already in your collection'

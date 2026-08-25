@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { BrowserMultiFormatReader } from '@zxing/browser'
-import { DecodeHintType } from '@zxing/library'
+import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 import { CameraIcon, PhotoIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 
 const emit = defineEmits<{
@@ -16,19 +16,44 @@ const cameraError = ref<string | null>(null)
 const imageError = ref<string | null>(null)
 const imageScanning = ref(false)
 
-const hints = new Map<DecodeHintType, unknown>([[DecodeHintType.TRY_HARDER, true]])
-const codeReader = new BrowserMultiFormatReader(hints)
+const isbnFormats = [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]
+
+// Video reader: no TRY_HARDER — continuous scanning gets many frames so it doesn't need it,
+// and TRY_HARDER causes ZXing to try far more reader combinations, flooding the console.
+const videoReader = new BrowserMultiFormatReader(new Map<DecodeHintType, unknown>([
+  [DecodeHintType.POSSIBLE_FORMATS, isbnFormats],
+]))
+
+// Image reader: TRY_HARDER on — single-shot so we need the thorough search.
+const codeReader = new BrowserMultiFormatReader(new Map<DecodeHintType, unknown>([
+  [DecodeHintType.TRY_HARDER, true],
+  [DecodeHintType.POSSIBLE_FORMATS, isbnFormats],
+]))
 let controls: { stop(): void } | null = null
+let mounted = false
+
+onMounted(() => { mounted = true })
+onUnmounted(() => {
+  mounted = false
+  controls?.stop()
+  controls = null
+})
 
 async function startCamera() {
   if (!videoRef.value) return
   cameraError.value = null
   try {
-    controls = await codeReader.decodeFromVideoDevice(undefined, videoRef.value, (result) => {
+    const cam = await videoReader.decodeFromVideoDevice(undefined, videoRef.value, (result) => {
       if (result) emit('detected', result.getText())
     })
+    // Mode or mount state may have changed while the async call was in flight
+    if (mounted && mode.value === 'camera') {
+      controls = cam
+    } else {
+      cam.stop()
+    }
   } catch {
-    cameraError.value = 'Camera not available.'
+    if (mounted) cameraError.value = 'Camera not available.'
   }
 }
 
@@ -45,12 +70,9 @@ watch(mode, (newMode) => {
   if (newMode === 'image') {
     stopCamera()
   } else {
-    // videoRef may already be mounted (v-show keeps it in DOM)
     if (videoRef.value) startCamera()
   }
 })
-
-onUnmounted(() => stopCamera())
 
 // --- image scanning ---
 
@@ -88,6 +110,24 @@ function cropStrip(img: HTMLImageElement, fromTop: boolean, fraction: number): H
   return canvas
 }
 
+function cropRegion(img: HTMLImageElement, x: number, y: number, w: number, h: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  canvas.getContext('2d')!.drawImage(img, x, y, w, h, 0, 0, w, h)
+  return canvas
+}
+
+function enhanced(src: HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = src.width
+  canvas.height = src.height
+  const ctx = canvas.getContext('2d')!
+  ctx.filter = 'grayscale(100%) contrast(250%)'
+  ctx.drawImage(src, 0, 0)
+  return canvas
+}
+
 async function tryZxing(file: File): Promise<string | null> {
   const url = URL.createObjectURL(file)
   try {
@@ -101,25 +141,41 @@ async function tryZxing(file: File): Promise<string | null> {
     const { naturalWidth: w, naturalHeight: h } = img
     const isPortrait = h > w
 
-    // Try the full image at multiple widths — including upscaling, which helps when
-    // the barcode bars are only a few pixels wide due to image size or heavy JPEG compression.
+    // Build all candidate canvases up front
+    const candidates: HTMLCanvasElement[] = []
+
     for (const targetW of [1400, 2000, 800]) {
-      try {
-        return (await codeReader.decodeFromCanvas(scaleToWidth(img, targetW))).getText()
-      } catch { /* try next */ }
+      candidates.push(scaleToWidth(img, targetW))
     }
 
-    // For full cover images (portrait), also crop to top/bottom strips so the
-    // barcode fills a larger fraction of the canvas.
     if (isPortrait) {
-      for (const fraction of [0.35, 0.25, 0.15]) {
+      // Full-width horizontal strips
+      for (const vFrac of [0.35, 0.25, 0.15]) {
         for (const fromTop of [false, true]) {
-          try {
-            const strip = cropStrip(img, fromTop, fraction)
-            return (await codeReader.decodeFromCanvas(scaleToWidth(strip, 1400))).getText()
-          } catch { /* try next */ }
+          candidates.push(scaleToWidth(cropStrip(img, fromTop, vFrac), 1400))
         }
       }
+
+      // Quadrant crops — handles barcodes in any corner
+      const halfW = Math.round(w / 2)
+      for (const vFrac of [0.35, 0.25]) {
+        const cropH = Math.round(h * vFrac)
+        for (const cropY of [h - cropH, 0]) {
+          for (const cropX of [halfW, 0]) {
+            candidates.push(scaleToWidth(cropRegion(img, cropX, cropY, halfW, cropH), 1400))
+          }
+        }
+      }
+    }
+
+    // Pass 1: try each candidate as-is
+    for (const c of candidates) {
+      try { return (await codeReader.decodeFromCanvas(c)).getText() } catch { /* try next */ }
+    }
+
+    // Pass 2: grayscale + high contrast — sharpens blurry JPEG bar edges for ZXing's binarizer
+    for (const c of candidates) {
+      try { return (await codeReader.decodeFromCanvas(enhanced(c))).getText() } catch { /* try next */ }
     }
 
     return null
@@ -194,10 +250,21 @@ async function handleImageFile(event: Event) {
         <CameraIcon class="w-10 h-10 opacity-40" />
         <p class="text-sm opacity-60">{{ cameraError }}</p>
       </div>
-      <div v-else class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-      <p v-if="!cameraError" class="absolute bottom-3 inset-x-0 text-center text-white/70 text-sm pointer-events-none">
-        Point at a barcode to scan
-      </p>
+      <template v-else>
+        <!-- Corner-bracket viewfinder -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div class="relative w-3/4 h-1/2">
+            <span class="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/80" />
+            <span class="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white/80" />
+            <span class="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white/80" />
+            <span class="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white/80" />
+          </div>
+        </div>
+        <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+        <p class="absolute bottom-3 inset-x-0 text-center text-white/70 text-sm pointer-events-none">
+          Point at a barcode to scan
+        </p>
+      </template>
     </div>
 
     <!-- Image mode -->
