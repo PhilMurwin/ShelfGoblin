@@ -15,7 +15,11 @@ import UserProfileDropdown from '@/components/UserProfileDropdown.vue'
       <UserProfileDropdown />
     </div>
 
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <KeepAlive include="HomeView">
+        <component :is="Component" />
+      </KeepAlive>
+    </RouterView>
 
     <footer class="mt-auto pt-12 text-center text-sm">
       <a href="/support.html" class="underline hover:opacity-80">Support</a>

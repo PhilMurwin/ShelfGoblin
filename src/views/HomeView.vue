@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onActivated } from 'vue'
+
+defineOptions({ name: 'HomeView' })
 import { useRouter } from 'vue-router'
 import { authState } from '@/services/googleAuth'
 import type { Book } from '@/models/book'
@@ -86,6 +88,15 @@ watch(
   },
   { immediate: true },
 )
+
+onActivated(async () => {
+  if (!spreadsheetId.value) return
+  try {
+    books.value = await getBooksFromShelf(spreadsheetId.value, BOOKSHELF_SHEET_NAME)
+  } catch {
+    // silently ignore — user already sees the cached list
+  }
+})
 
 function handleEdit(book: Book) {
   router.push({ name: 'edit-book', state: { book: JSON.parse(JSON.stringify(book)) } })
