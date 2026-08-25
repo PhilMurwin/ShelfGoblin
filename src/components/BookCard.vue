@@ -22,7 +22,7 @@ defineEmits<{ 'toggle-read': [book: Book]; edit: [book: Book] }>()
           v-if="book.coverUrl"
           :src="book.coverUrl"
           :alt="book.title"
-          class="w-full h-full object-cover"
+          class="max-w-full max-h-full object-contain"
         />
         <span v-else class="text-4xl select-none">📖</span>
       </div>
