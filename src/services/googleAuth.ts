@@ -211,11 +211,26 @@ async function handleIdentityCredential(response: GoogleCredentialResponse): Pro
   state.error = null
 
   try {
-    state.user = decodeGoogleIdentity(response.credential)
+    const identity = decodeGoogleIdentity(response.credential)
+    await verifyAccess(response.credential)
+    state.user = identity
   } catch (error) {
     state.error = errorMessage(error)
   } finally {
     state.loading = false
+  }
+}
+
+async function verifyAccess(idToken: string): Promise<void> {
+  const response = await fetch('/.netlify/functions/verify-access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(data.error ?? 'Access denied.')
   }
 }
 

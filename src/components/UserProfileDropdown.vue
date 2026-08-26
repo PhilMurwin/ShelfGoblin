@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { authState, signOut } from '@/services/googleAuth'
+
+const router = useRouter()
 
 const open = ref(false)
 const imageError = ref(false)
@@ -15,6 +18,7 @@ const showImage = computed(() => !!authState.user?.picture && !imageError.value)
 function handleSignOut() {
   open.value = false
   signOut()
+  void router.replace({ name: 'login' })
 }
 </script>
 
