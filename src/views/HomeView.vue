@@ -13,6 +13,7 @@ import {
   recreateShelfGoblinSpreadsheet,
   BOOKSHELF_SHEET_NAME,
 } from '@/services/googleSheets'
+import { DriveConsentRequiredError, requestDriveAccess } from '@/services/googleAuth'
 import BookList from '@/components/BookList.vue'
 import BookCard from '@/components/BookCard.vue'
 
@@ -22,6 +23,8 @@ const spreadsheetError = ref<string | null>(null)
 const spreadsheetLoading = ref(false)
 const missingSpreadsheetMetaFileId = ref<string | null>(null)
 const recreating = ref(false)
+const needsDriveConsent = ref(false)
+const connectingDrive = ref(false)
 
 const books = ref<Book[]>([])
 const booksLoading = ref(false)
@@ -82,6 +85,7 @@ watch(
     spreadsheetLoading.value = true
     spreadsheetError.value = null
     missingSpreadsheetMetaFileId.value = null
+    needsDriveConsent.value = false
 
     try {
       debugStatus.value = "Starting bookshelf setup..."
@@ -89,7 +93,9 @@ watch(
       debugStatus.value = "Bookshelf setup complete."
       spreadsheetId.value = result.spreadsheetId
     } catch (error) {
-      if (error instanceof SpreadsheetNotFoundError) {
+      if (error instanceof DriveConsentRequiredError) {
+        needsDriveConsent.value = true
+      } else if (error instanceof SpreadsheetNotFoundError) {
         missingSpreadsheetMetaFileId.value = error.metadataFileId
       } else {
         spreadsheetError.value =
@@ -131,6 +137,31 @@ async function toggleRead(book: Book) {
   }
 }
 
+async function connectBookshelf() {
+  connectingDrive.value = true
+  needsDriveConsent.value = false
+  spreadsheetError.value = null
+
+  try {
+    // requestDriveAccess calls tokenClient.requestAccessToken() synchronously
+    // within this gesture handler so mobile browsers don't block the popup.
+    await requestDriveAccess()
+    spreadsheetLoading.value = true
+    const result = await ensureShelfGoblinSpreadsheet()
+    spreadsheetId.value = result.spreadsheetId
+    await loadBooks(result.spreadsheetId)
+  } catch (error) {
+    if (error instanceof DriveConsentRequiredError) {
+      needsDriveConsent.value = true
+    } else {
+      spreadsheetError.value = error instanceof Error ? error.message : 'Unable to connect bookshelf.'
+    }
+  } finally {
+    connectingDrive.value = false
+    spreadsheetLoading.value = false
+  }
+}
+
 async function handleRecreate() {
   if (!missingSpreadsheetMetaFileId.value) return
 
@@ -158,8 +189,24 @@ async function handleRecreate() {
     <!-- Spreadsheet initializing -->
     <p v-if="spreadsheetLoading" class="mt-3 text-sm" style="color: var(--text)">
       Setting up your bookshelf…
+      <span v-if="debugStatus">{{ debugStatus }}</span>
     </p>
-    <p v-if="debugStatus">{{ debugStatus }}</p>
+
+    <!-- Drive consent required (popup blocked on mobile) -->
+    <div
+      v-else-if="needsDriveConsent"
+      class="mt-6 rounded-xl border border-(--border) p-6 text-center"
+    >
+      <p class="text-sm">Tap below to connect your Google Drive bookshelf.</p>
+      <button
+        type="button"
+        class="mt-3 px-5 py-2 rounded-lg font-medium border border-(--border) cursor-pointer hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50"
+        :disabled="connectingDrive"
+        @click="connectBookshelf"
+      >
+        {{ connectingDrive ? 'Connecting…' : 'Connect bookshelf' }}
+      </button>
+    </div>
 
     <!-- Spreadsheet missing / deleted -->
     <div

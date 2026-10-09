@@ -55,6 +55,42 @@ interface GoogleIdentityServices {
 let googleLibrary: Promise<GoogleIdentityServices> | null = null
 let configuredClientId: string | null = null
 
+const IDENTITY_STORAGE_KEY = 'shelf-goblin-user'
+
+function saveIdentity(identity: GoogleIdentity): void {
+  try {
+    localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(identity))
+  } catch {
+    // localStorage unavailable (private browsing, etc.) — silent fail
+  }
+}
+
+function loadIdentity(): GoogleIdentity | null {
+  try {
+    const raw = localStorage.getItem(IDENTITY_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as Record<string, unknown>).subject === 'string' &&
+      typeof (parsed as Record<string, unknown>).email === 'string' &&
+      typeof (parsed as Record<string, unknown>).name === 'string'
+    ) {
+      return parsed as GoogleIdentity
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function clearIdentity(): void {
+  try {
+    localStorage.removeItem(IDENTITY_STORAGE_KEY)
+  } catch {}
+}
+
 declare global {
   interface Window {
     google?: GoogleIdentityServices
@@ -154,6 +190,13 @@ export async function initializeGoogleAuth(): Promise<void> {
 
       state.initialized = true
 
+      // Restore a previously saved identity so the route guard sees authState.user
+      // synchronously on refresh, without waiting for One Tap's async callback.
+      if (!state.user) {
+        const saved = loadIdentity()
+        if (saved) state.user = saved
+      }
+
       // The button is the explicit fallback; One Tap is what enables an
       // automatic sign-in attempt on a later visit without a button click.
       google.accounts.id.prompt()
@@ -197,12 +240,47 @@ export async function getAccessToken(): Promise<string> {
   return requestAccessToken(google, clientId, state.user.email)
 }
 
+/**
+ * Thrown when an OAuth token request requires a user gesture to open the consent
+ * popup — typical on mobile where the automatic post-sign-in flow is too far from
+ * the original tap to satisfy the browser's popup-blocker rules.
+ */
+export class DriveConsentRequiredError extends Error {
+  constructor() {
+    super('Tap "Connect bookshelf" to grant access to Google Drive.')
+    this.name = 'DriveConsentRequiredError'
+  }
+}
+
+/**
+ * Requests a Drive/Sheets access token synchronously from a user gesture.
+ * Unlike getAccessToken(), this skips the async library-load step and goes
+ * directly to the token client so the popup-open lands inside the gesture handler.
+ * Call this from a button-click handler after catching DriveConsentRequiredError.
+ */
+export async function requestDriveAccess(): Promise<void> {
+  if (hasUsableAccessToken()) return
+
+  if (!state.user) {
+    throw new Error('Sign in with Google before accessing your bookshelf.')
+  }
+
+  const google = window.google
+  if (!google) {
+    throw new Error('Google Identity Services is not loaded.')
+  }
+
+  const clientId = configuredClientId ?? getClientId()
+  await requestAccessToken(google, clientId, state.user.email)
+}
+
 export function signOut(): void {
   state.user = null
   state.accessToken = null
   state.accessTokenExpiresAt = null
   state.error = null
 
+  clearIdentity()
   window.google?.accounts.id.disableAutoSelect()
 }
 
@@ -214,6 +292,7 @@ async function handleIdentityCredential(response: GoogleCredentialResponse): Pro
     const identity = decodeGoogleIdentity(response.credential)
     await verifyAccess(response.credential)
     state.user = identity
+    saveIdentity(identity)
   } catch (error) {
     state.error = errorMessage(error)
   } finally {
@@ -240,10 +319,20 @@ function requestAccessToken(
   email: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    // 15-second guard for browsers that block the popup without calling the callback.
+    const timeout = setTimeout(() => reject(new DriveConsentRequiredError()), 15_000)
+
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: `${GOOGLE_DRIVE_FILE_SCOPE} ${GOOGLE_DRIVE_APPDATA_SCOPE}`,
       callback: (response) => {
+        clearTimeout(timeout)
+
+        if (response.error === 'popup_blocked_by_browser' || response.error === 'popup_closed_by_user') {
+          reject(new DriveConsentRequiredError())
+          return
+        }
+
         if (response.error || !response.access_token || !response.expires_in) {
           reject(new Error(response.error_description ?? response.error ?? 'Google authorization failed.'))
           return
