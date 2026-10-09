@@ -65,11 +65,32 @@ export class SpreadsheetNotFoundError extends Error {
 }
 
 async function authorizedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  window.dispatchEvent(
+    new CustomEvent('shelf-goblin-debug', {
+      detail: 'Waiting for GoogleSheets access token...',
+    }),
+  )
+
   const token = await getAccessToken()
-  return fetch(url, {
+
+  window.dispatchEvent(
+    new CustomEvent('shelf-goblin-debug', {
+      detail: 'Access token received; contacting GoogleSheets API...',
+    }),
+  )
+
+  const response = await fetch(url, {
     ...options,
     headers: { ...options.headers, Authorization: `Bearer ${token}` },
   })
+
+  window.dispatchEvent(
+    new CustomEvent('shelf-goblin-debug', {
+      detail: `GoogleSheets API responded: ${response.status}`,
+    }),
+  )
+
+  return response
 }
 
 export async function createSpreadsheet(): Promise<SpreadsheetInfo> {

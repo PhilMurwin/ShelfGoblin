@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onActivated } from 'vue'
+import { ref, computed, watch, onActivated, onMounted, onUnmounted } from 'vue'
 
 defineOptions({ name: 'HomeView' })
 import { useRouter } from 'vue-router'
@@ -54,6 +54,18 @@ async function loadBooks(id: string) {
   } finally {
     booksLoading.value = false
   }
+}
+
+onMounted(() => {
+  window.addEventListener('shelf-goblin-debug',handleDebug)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('shelf-goblin-debug',handleDebug)
+})
+
+function handleDebug(event: Event) {
+  debugStatus.value = (event as CustomEvent<string>).detail
 }
 
 watch(
