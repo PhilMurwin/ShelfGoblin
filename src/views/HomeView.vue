@@ -30,6 +30,8 @@ const booksError = ref<string | null>(null)
 const searchQuery = ref('')
 const viewMode = ref<'list' | 'card'>('list')
 
+const debugStatus = ref('')
+
 const filteredBooks = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return books.value
@@ -70,7 +72,9 @@ watch(
     missingSpreadsheetMetaFileId.value = null
 
     try {
+      debugStatus.value = "Starting bookshelf setup..."
       const result = await ensureShelfGoblinSpreadsheet()
+      debugStatus.value = "Bookshelf setup complete."
       spreadsheetId.value = result.spreadsheetId
     } catch (error) {
       if (error instanceof SpreadsheetNotFoundError) {
@@ -143,6 +147,7 @@ async function handleRecreate() {
     <p v-if="spreadsheetLoading" class="mt-3 text-sm" style="color: var(--text)">
       Setting up your bookshelf…
     </p>
+    <p v-if="debugStatus">{{ debugStatus }}</p>
 
     <!-- Spreadsheet missing / deleted -->
     <div
